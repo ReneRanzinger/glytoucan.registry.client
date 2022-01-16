@@ -1,0 +1,6 @@
+[
+  {
+    "message": "invalid json response body at https://api.glycosmos.org/glycanformatconverter/2.5.2/wurcs2wurcs/ reason: Unexpected token < in JSON at position 0",
+    "type": "invalid-json"
+  }
+]
