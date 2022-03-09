@@ -1,0 +1,7 @@
+{
+    "timestamp": "2022-01-19T22:23:35.914+0000",
+    "status": 500,
+    "error": "Internal Server Error",
+    "message": "No message available",
+    "path": "/glycan/register"
+}

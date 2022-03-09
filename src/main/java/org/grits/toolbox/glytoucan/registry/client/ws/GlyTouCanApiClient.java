@@ -12,6 +12,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 
 public class GlyTouCanApiClient
@@ -23,10 +24,11 @@ public class GlyTouCanApiClient
     public static String GLYCAN_URL = "https://sparqlist.glycosmos.org/sparqlist/api/gtc_wurcs_by_accession?accNum=";
     public static String GET_ACCESSION_FOR_WURCS_URL = "https://api.glycosmos.org/glytoucan/sparql/wurcs2gtcids?wurcs=";
     public static String REGISTER_URL = "https://api.glytoucan.org/glycan/register";
+    public static String GET_STATUS_BY_HASHKEY_URL = "https://sparqlist.glycosmos.org/sparqlist/api/gtc_select_acc_by_hashkey?hash=";
 
     private static RestTemplate restTemplate = new RestTemplate();
 
-    public GlyTouCanApiClient(String a_apiKey, String a_userId)
+    public GlyTouCanApiClient(String a_userId, String a_apiKey)
     {
         this.m_apiKey = a_apiKey;
         this.m_userId = a_userId;
@@ -91,13 +93,23 @@ public class GlyTouCanApiClient
 
         HttpEntity<WURCSSequence> requestEntity = new HttpEntity<WURCSSequence>(t_payload,
                 createHeaders(this.m_userId, this.m_apiKey));
-
-        ResponseEntity<String> t_response = restTemplate.exchange(GlyTouCanApiClient.REGISTER_URL,
-                HttpMethod.POST, requestEntity, String.class);
-        HttpResponseSummary t_responseObject = new HttpResponseSummary();
-        t_responseObject.setBody(t_response.getBody());
-        t_responseObject.setHttpCode(t_response.getStatusCodeValue());
-        t_responseObject.setReasonPhrase(t_response.getStatusCode().getReasonPhrase());
-        return t_responseObject;
+        try
+        {
+            ResponseEntity<String> t_response = restTemplate.exchange(
+                    GlyTouCanApiClient.REGISTER_URL, HttpMethod.POST, requestEntity, String.class);
+            HttpResponseSummary t_responseObject = new HttpResponseSummary();
+            t_responseObject.setBody(t_response.getBody());
+            t_responseObject.setHttpCode(t_response.getStatusCodeValue());
+            t_responseObject.setReasonPhrase(t_response.getStatusCode().getReasonPhrase());
+            return t_responseObject;
+        }
+        catch (HttpServerErrorException e)
+        {
+            HttpResponseSummary t_responseObject = new HttpResponseSummary();
+            t_responseObject.setBody(e.getResponseBodyAsString());
+            t_responseObject.setHttpCode(e.getStatusCode().value());
+            t_responseObject.setReasonPhrase(e.getStatusCode().getReasonPhrase());
+            return t_responseObject;
+        }
     }
 }

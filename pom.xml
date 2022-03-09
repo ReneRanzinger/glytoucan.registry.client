@@ -133,19 +133,21 @@
       <artifactId>glycanbuilder2</artifactId>
       <version>1.12.0</version>
     </dependency>
-
-<dependency>
+    <dependency>
       <groupId>jakarta.xml.bind</groupId>
       <artifactId>jakarta.xml.bind-api</artifactId>
       <version>3.0.1</version>
-  </dependency>
-
-  <!-- JAXB RI, Jakarta XML Binding -->
-  <dependency>
+    </dependency>
+    <dependency>
       <groupId>com.sun.xml.bind</groupId>
       <artifactId>jaxb-impl</artifactId>
       <version>3.0.1</version>
-  </dependency>
+    </dependency>
+    <dependency>
+      <groupId>com.opencsv</groupId>
+      <artifactId>opencsv</artifactId>
+      <version>5.5</version>
+    </dependency>
 
 <!-- INDIRECT DEPENDENCIES ... so bad -->
     <dependency>
