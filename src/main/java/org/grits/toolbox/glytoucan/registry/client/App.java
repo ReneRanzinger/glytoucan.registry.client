@@ -1,7 +1,6 @@
 package org.grits.toolbox.glytoucan.registry.client;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,13 +24,14 @@ public class App
     private static final String DATABASE_FOLDER = "GRITS_databases";
     private static final String IMAGE_FOLDER = "images";
 
-    public static void main(String[] a_args) throws IOException
+    public static void main(String[] a_args)
     {
         // parse the command line arguments and store them
         Options t_options = App.buildComandLineOptions();
         AppArguments t_arguments = App.processCommandlineArguments(a_args, t_options);
         if (t_arguments == null)
         {
+            // error messages and command line options have been printed already
             return;
         }
         // create all output folders that are needed
@@ -43,7 +43,17 @@ public class App
         if (t_arguments.getInputFolder() != null)
         {
             // Load GWS files, only GWS format is filled in GlycanInformation
-            t_glycanFiles = t_registry.loadGwsFiles(t_arguments.getInputFolder());
+            try
+            {
+                t_glycanFiles = t_registry.loadGwsFiles(t_arguments.getInputFolder());
+            }
+            catch (Exception e)
+            {
+                System.out.println("Unable to read GWS files: " + e.getMessage());
+                System.out.println("Please provide valid GWS files.");
+                App.printComandParameter(t_options);
+                return;
+            }
             // Convert all glycans to WURCS
             t_registry.convertToWurcs(t_glycanFiles);
             // Check if glycan exists in GlyTouCan and fill the sequences
@@ -71,14 +81,47 @@ public class App
                     t_arguments.getGlyTouCanApiKey());
         }
         // Write into result file
-        t_registry.writeResultFile(t_glycanFiles, t_arguments.getOutputFolder());
+        try
+        {
+            t_registry.writeResultFile(t_glycanFiles, t_arguments.getOutputFolder());
+        }
+        catch (Exception e)
+        {
+            System.out.println("Error writing the result file: " + e.getMessage());
+            System.out.println(
+                    "Please ensure the result file is not open by another program and you have write permission to the output folder.");
+            e.printStackTrace(System.err);
+            return;
+        }
         // Write into report file
-        ExcelReport t_excelReportGenerator = new ExcelReport();
-        t_excelReportGenerator.writeReport(t_glycanFiles, t_arguments.getOutputFolder());
+        try
+        {
+            ExcelReport t_excelReportGenerator = new ExcelReport();
+            t_excelReportGenerator.writeReport(t_glycanFiles, t_arguments.getOutputFolder());
+        }
+        catch (Exception e)
+        {
+            System.out.println("Error writing the Excel file: " + e.getMessage());
+            System.out.println(
+                    "Please ensure the result file is not open by another program and you have write permission to the output folder.");
+            e.printStackTrace(System.err);
+            return;
+        }
         // write images
-        ImageWriter t_writer = new ImageWriter();
-        t_writer.writeImages(t_glycanFiles,
-                t_arguments.getOutputFolder() + File.separator + App.IMAGE_FOLDER);
+        try
+        {
+            ImageWriter t_writer = new ImageWriter();
+            t_writer.writeImages(t_glycanFiles,
+                    t_arguments.getOutputFolder() + File.separator + App.IMAGE_FOLDER);
+        }
+        catch (Exception e)
+        {
+            System.out.println("Error writing the image files: " + e.getMessage());
+            System.out.println(
+                    "Please ensure the result file is not open by another program and you have write permission to the output folder.");
+            e.printStackTrace(System.err);
+            return;
+        }
         // write database
         DatabaseIO t_databaseIO = new DatabaseIO();
         try
@@ -89,13 +132,29 @@ public class App
         catch (JAXBException e)
         {
             System.out.println("Error writing GRITS databases: " + e.getMessage());
+            System.out.println(
+                    "Please ensure the result file is not open by another program and you have write permission to the output folder.");
             e.printStackTrace(System.err);
         }
     }
 
+    /**
+     * Process the command line options and create the AppArgument object.
+     *
+     * If the processing failed the error messages and command line options have
+     * been printed.
+     *
+     * @param a_args
+     *            Command line arguments given by the user
+     * @param a_options
+     *            Configuration object for the command line parameters
+     * @return AppArguments object with the extracted command line options or
+     *         NULL if parsing/validation failed. In this case error messages
+     *         and valid command line options have been printed to System.out.
+     */
     private static AppArguments processCommandlineArguments(String[] a_args, Options a_options)
     {
-        // initialize the arguments from property file or command line
+        // initialize the arguments from command line
         AppArguments t_arguments = null;
         try
         {
@@ -123,11 +182,20 @@ public class App
         return t_arguments;
     }
 
+    /**
+     * Create additional folders inside the output folder for images and GRITS
+     * database
+     *
+     * @param a_arguments
+     *            Command line parameter object
+     */
     private static void createFolders(AppArguments a_arguments)
     {
+        // Database folder
         File t_folder = new File(
                 a_arguments.getOutputFolder() + File.separator + App.DATABASE_FOLDER);
         t_folder.mkdirs();
+        // Image folder
         t_folder = new File(a_arguments.getOutputFolder() + File.separator + App.IMAGE_FOLDER);
         t_folder.mkdirs();
     }
@@ -138,9 +206,10 @@ public class App
      *
      * @param a_args
      *            Command line parameters handed down to the application.
-     * @return Validated parameter or null if loading/validation fails. In that
-     *         case corresponding error message are printed to console.
+     * @return Validated parameter object or null if loading/validation fails.
+     *         In that case corresponding error message are printed to console.
      * @throws ParseException
+     *             Thrown if the command line parsing fails
      */
     private static AppArguments parseArguments(String[] a_args, Options a_options)
             throws ParseException
@@ -149,14 +218,6 @@ public class App
         CommandLineParser t_parser = new DefaultParser();
         // parse the command line arguments
         CommandLine t_commandLine = t_parser.parse(a_options, a_args);
-
-        // validate that block-size has been set
-        if (t_commandLine.hasOption("block-size"))
-        {
-            // print the value of block-size
-            System.out.println();
-        }
-
         AppArguments t_arguments = new AppArguments();
         // overwrite from arguments
         t_arguments.setGlyTouCanUserId(t_commandLine.getOptionValue("u"));
@@ -177,7 +238,7 @@ public class App
      *
      * @param a_arguments
      *            Argument object filled with the parsed command line parameters
-     * @return TRUE if the parameter are valid. FALSE if at least one parameter
+     * @return TRUE if the parameters are valid. FALSE if at least one parameter
      *         is incorrect. In that case a message is printed to System.out
      */
     private static boolean checkArguments(AppArguments a_arguments)
@@ -240,6 +301,17 @@ public class App
                 t_valid = false;
             }
         }
+        // check user and API key
+        if (a_arguments.getGlyTouCanApiKey() == null)
+        {
+            System.out.println("GlyTouCan API key (-k) is required.");
+            t_valid = false;
+        }
+        if (a_arguments.getGlyTouCanUserId() == null)
+        {
+            System.out.println("GlyTouCan user ID (-u) is required.");
+            t_valid = false;
+        }
         return t_valid;
     }
 
@@ -253,6 +325,11 @@ public class App
                 a_options);
     }
 
+    /**
+     * Build the command line argument object that contains all options
+     *
+     * @return Object with the command line options
+     */
     private static Options buildComandLineOptions()
     {
         // create the Options
@@ -270,7 +347,7 @@ public class App
         t_option.setRequired(true);
         t_options.addOption(t_option);
         // input folder
-        t_option = new Option("i", "input", true, "Input folder Directory with the GWS files.");
+        t_option = new Option("i", "input", true, "Input folder with the GWS files.");
         t_option.setArgs(1);
         t_option.setRequired(false);
         t_options.addOption(t_option);
@@ -282,7 +359,7 @@ public class App
         t_options.addOption(t_option);
         // output folder
         t_option = new Option("o", "output", true,
-                "Output folder Directory that will be used to store the output.");
+                "Output folder that will be used to store the output.");
         t_option.setArgs(1);
         t_option.setRequired(true);
         t_options.addOption(t_option);

@@ -11,7 +11,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.eurocarbdb.application.glycanbuilder.Glycan;
-import org.glycoinfo.GlycanFormatconverter.io.GlycoCT.WURCSToGlycoCT;
 import org.grits.toolbox.glytoucan.registry.client.io.FolderProcessor;
 import org.grits.toolbox.glytoucan.registry.client.om.GlycanFile;
 import org.grits.toolbox.glytoucan.registry.client.om.GlycanInformation;
@@ -26,6 +25,13 @@ import com.fasterxml.jackson.core.exc.StreamWriteException;
 import com.fasterxml.jackson.databind.DatabindException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+/**
+ * Utility class that takes care of sequence conversion and interaction with
+ * GlyTouCan API
+ *
+ * @author Rene Ranzinger
+ *
+ */
 public class Registry
 {
     private static final String OUTPUT_FILENAME = "glytoucan-registry-result.json";
@@ -33,21 +39,40 @@ public class Registry
     private GlycanFormatConverter m_converter = new GlycanFormatConverter();
     private ResponseUtil m_responseUtil = new ResponseUtil();
 
+    /**
+     * Convert the GWS sequences in the GlycanInformation objects to WURCS
+     *
+     * @param a_glycanFiles
+     *            List of GlycanFiles with GlycanInformation objects
+     */
     public void convertToWurcs(List<GlycanFile> a_glycanFiles)
     {
-
+        // for each file
         for (GlycanFile t_glycanFile : a_glycanFiles)
         {
+            // for each GlycanInformation in the file
             List<GlycanInformation> t_glycanList = t_glycanFile.getGlycans();
             for (GlycanInformation t_glycan : t_glycanList)
             {
+                // convert to WURCS
                 this.m_converter.gwsToWurcs(t_glycan);
             }
         }
     }
 
+    /**
+     * Load GWS file from the provided input folder
+     *
+     * @param a_inputFolder
+     *            Folder with GWS files
+     * @return List of GlycanFile objects that contain the sequences from teh
+     *         GWS files
+     * @throws IOException
+     *             Thrown if the loading of the files failed
+     */
     public List<GlycanFile> loadGwsFiles(String a_inputFolder) throws IOException
     {
+        // create utility class and load the files
         FolderProcessor t_gwsFolderProcessor = new FolderProcessor();
         return t_gwsFolderProcessor.loadFiles(a_inputFolder);
     }
@@ -96,71 +121,81 @@ public class Registry
 
     private void retrieveGlycan(GlycanInformation a_glycan, GlyTouCanApiClient a_client)
     {
-        HttpResponseSummary t_response = a_client.getAccessionNumber(a_glycan.getWurcs());
-        if (t_response.getHttpCode() >= 400)
+        try
         {
-            // there was an error
-            a_glycan.setError("GlyTouCan find glycan request failed with HTTP code "
-                    + t_response.getHttpCode().toString() + ":" + t_response.getReasonPhrase());
-            a_glycan.setFailed(true);
-            a_glycan.addErrorInfo(t_response.getBody());
-        }
-        else
-        {
-            try
+            HttpResponseSummary t_response = a_client.getAccessionNumber(a_glycan.getWurcs());
+            if (t_response.getHttpCode() >= 400)
             {
-                GetAccessionResponse t_responseAccession = this.m_responseUtil
-                        .processGetAccessionNumber(t_response.getBody());
-                if (t_responseAccession.isJsonError())
-                {
-                    // we made some JSON GlyTouCan does not
-                    // understand
-                    a_glycan.setFailed(true);
-                    a_glycan.setError("Invalid JSON error from GlyTouCan.");
-                    a_glycan.addErrorInfo(t_responseAccession.getMessage());
-                }
-                else if (t_responseAccession.isError())
-                {
-                    // some error happened
-                    a_glycan.setFailed(true);
-                    a_glycan.setError("GlyTouCan reported error.");
-                    a_glycan.addErrorInfo(t_responseAccession.getMessage());
-                }
-                else if (t_responseAccession.isAccessionFound())
-                {
-                    // we found the ID
-                    a_glycan.setGlyTouCanId(t_responseAccession.getGlycanId());
-                    a_glycan.setWurcsAfterRegistration(t_responseAccession.getWurcs());
-                    // convert back to GlycoCT and GWS
-                    try
-                    {
-                        WURCSToGlycoCT wurcsConverter = new WURCSToGlycoCT();
-                        wurcsConverter.start(t_responseAccession.getWurcs());
-                        String t_glycoCT = wurcsConverter.getGlycoCT();
-                        a_glycan.setGlycoCtAfterRegistration(t_glycoCT);
-                        // convert to GWS
-                        Glycan t_glycanConverted = Glycan.fromGlycoCTCondensed(t_glycoCT);
-                        a_glycan.setGwsAfterRegistration(t_glycanConverted.toString());
-                        GlycanFormatConverter.adjustMassOption(t_glycanConverted);
-                        a_glycan.setGwsOrderedAfterRegistration(
-                                t_glycanConverted.toStringOrdered());
-                    }
-                    catch (Exception e)
-                    {
-                        String t_stackTrace = Registry.stackTrace2String(e);
-                        a_glycan.addWarnings(
-                                "Unable to translate back to GlycoCT and GWS: " + e.getMessage());
-                        a_glycan.addWarnings(t_stackTrace);
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                String t_stackTrace = Registry.stackTrace2String(e);
+                // there was an error
+                a_glycan.setError("GlyTouCan find glycan request failed with HTTP code "
+                        + t_response.getHttpCode().toString() + ":" + t_response.getReasonPhrase());
                 a_glycan.setFailed(true);
-                a_glycan.setError("Error in finding of GlyTouCan ID: " + e.getMessage());
-                a_glycan.addErrorInfo(t_stackTrace);
+                a_glycan.addErrorInfo(t_response.getBody());
             }
+            else
+            {
+                try
+                {
+                    GetAccessionResponse t_responseAccession = this.m_responseUtil
+                            .processGetAccessionNumber(t_response.getBody());
+                    if (t_responseAccession.isJsonError())
+                    {
+                        // we made some JSON GlyTouCan does not
+                        // understand
+                        a_glycan.setFailed(true);
+                        a_glycan.setError("Invalid JSON error from GlyTouCan.");
+                        a_glycan.addErrorInfo(t_responseAccession.getMessage());
+                    }
+                    else if (t_responseAccession.isError())
+                    {
+                        // some error happened
+                        a_glycan.setFailed(true);
+                        a_glycan.setError("GlyTouCan reported error.");
+                        a_glycan.addErrorInfo(t_responseAccession.getMessage());
+                    }
+                    else if (t_responseAccession.isAccessionFound())
+                    {
+                        // we found the ID
+                        a_glycan.setGlyTouCanId(t_responseAccession.getGlycanId());
+                        a_glycan.setWurcsAfterRegistration(t_responseAccession.getWurcs());
+                        // convert back to GlycoCT
+                        try
+                        {
+                            String t_glycoCT = this.m_converter
+                                    .wurcs2GlycoCt(t_responseAccession.getWurcs());
+                            a_glycan.setGlycoCtAfterRegistration(t_glycoCT);
+                            // convert to GWS
+                            Glycan t_glycanConverted = Glycan.fromGlycoCTCondensed(t_glycoCT);
+                            a_glycan.setGwsAfterRegistration(t_glycanConverted.toString());
+                            GlycanFormatConverter.adjustMassOption(t_glycanConverted);
+                            a_glycan.setGwsOrderedAfterRegistration(
+                                    t_glycanConverted.toStringOrdered());
+                        }
+                        catch (Exception e)
+                        {
+                            String t_stackTrace = Registry.stackTrace2String(e);
+                            a_glycan.addWarnings("Unable to translate back to GlycoCT and GWS: "
+                                    + e.getMessage());
+                            a_glycan.addWarnings(t_stackTrace);
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    String t_stackTrace = Registry.stackTrace2String(e);
+                    a_glycan.setFailed(true);
+                    a_glycan.setError(
+                            "Error in processing of GlyTouCan response: " + e.getMessage());
+                    a_glycan.addErrorInfo(t_stackTrace);
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            String t_stackTrace = Registry.stackTrace2String(e);
+            a_glycan.setFailed(true);
+            a_glycan.setError("Error in finding GlyTouCan ID: " + e.getMessage());
+            a_glycan.addErrorInfo(t_stackTrace);
         }
     }
 

@@ -19,6 +19,18 @@ import org.glycoinfo.WURCSFramework.util.WURCSException;
 import org.grits.toolbox.glytoucan.registry.client.om.GlycanInformation;
 import org.grits.toolbox.glytoucan.registry.client.util.Registry;
 
+/**
+ * Utility class to convert glycan sequence formats.
+ *
+ * The main task is to convert GWS to WURCS sequences and fill the
+ * GlycanInformation object with the intermediates (GlycoCT). If in the process
+ * an error happens or the validation code detects invalid sequences or warning
+ * this message will be saved in the corresponding fields of the
+ * GlycanInformation objects.
+ *
+ * @author Rene Ranzinger
+ *
+ */
 public class GlycanFormatConverter
 {
     protected BuilderWorkspace m_glycanWorkspace = null;
@@ -27,17 +39,18 @@ public class GlycanFormatConverter
 
     public GlycanFormatConverter()
     {
+        // initialize the GlycanWorkspace
         this.m_glycanWorkspace = new BuilderWorkspace(new GlycanRendererAWT());
     }
 
     /**
-     * Converts the GWS format into works and stores sequence in
+     * Converts the GWS format into WURCS and stores sequence in
      * GlycanInformation
      *
      * First converts GWS to GlycoCT and corrects known conversion errors. If
      * that is the case warnings will be added in the GlycanInformation objects.
      * In the next step GlycoCT is validated. If there is an error this is
-     * stored and failed flag is stet to TRUE. If there are warnings, they are
+     * stored and failed flag is set to TRUE. If there are warnings, they are
      * stored as well but the sequence is further processed. After this the
      * format is converted to WURCS. Any exception in the process is caught and
      * the failed flag is set to TRUE and the error is stored in the
@@ -169,6 +182,13 @@ public class GlycanFormatConverter
         return true;
     }
 
+    /**
+     * Convert GWS to GlycoCT
+     *
+     * @param a_gws
+     *            GWS sequence
+     * @return GlycoCT sequence or NULL if there was an error
+     */
     private String gws2GlycoCT(String a_gws)
     {
         Glycan glycanObject = Glycan.fromString(a_gws.trim());
@@ -179,6 +199,19 @@ public class GlycanFormatConverter
         return null;
     }
 
+    /**
+     * Convert GlycoCT to WURCS
+     *
+     * @param a_glycoCT
+     *            GlycoCT sequence
+     * @return WURCS sequence
+     * @throws SugarImporterException
+     *             Thrown if the reading of the GlycoCT sequence fails
+     * @throws GlycoVisitorException
+     *             Thrown if the writing to WURCS fails
+     * @throws WURCSException
+     *             Thrown if the object model contains errors
+     */
     private String glycoCt2Wurcs(String a_glycoCT)
             throws SugarImporterException, GlycoVisitorException, WURCSException
     {
@@ -187,23 +220,43 @@ public class GlycanFormatConverter
         return t_exporter.getWURCS();
     }
 
+    /**
+     * Convert WURCS to GlycoCT
+     *
+     * @param a_wurcs
+     *            WURCS sequence
+     * @return GlycoCT sequence
+     * @throws SugarImporterException
+     *             Thrown if the reading of WURCS fails
+     * @throws GlycoVisitorException
+     *             Thrown if the exporting to GlycoCT fails
+     * @throws WURCSException
+     *             Thrown if the WURCS object contains errors
+     */
     public String wurcs2GlycoCt(String a_wurcs)
             throws SugarImporterException, GlycoVisitorException, WURCSException
     {
         WURCSExporterGlycoCT t_exporter = new WURCSExporterGlycoCT();
         t_exporter.start(a_wurcs);
-        t_exporter.getGlycoCT();
-        return t_exporter.getWURCS();
+        return t_exporter.getGlycoCT();
     }
 
-    public static void adjustMassOption(Glycan a_glycanConverted)
+    /**
+     * Sets a predefined set of mass options for a Glycan object.
+     *
+     * This is to ensure a unique GWS string can be generated.
+     *
+     * @param a_glycan
+     *            Glycan object that should get the mass option set
+     */
+    public static void adjustMassOption(Glycan a_glycan)
     {
         MassOptions t_massOptions = new MassOptions();
         t_massOptions.setDerivatization(MassOptions.NO_DERIVATIZATION);
         t_massOptions.setReducingEndType(ResidueType.createFreeReducingEnd());
-        a_glycanConverted.setMassOptions(t_massOptions);
-        a_glycanConverted.setCharges(new IonCloud());
-        a_glycanConverted.setNeutralExchanges(new IonCloud());
+        a_glycan.setMassOptions(t_massOptions);
+        a_glycan.setCharges(new IonCloud());
+        a_glycan.setNeutralExchanges(new IonCloud());
     }
 
 }

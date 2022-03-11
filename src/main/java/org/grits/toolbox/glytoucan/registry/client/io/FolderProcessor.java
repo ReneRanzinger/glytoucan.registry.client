@@ -10,9 +10,25 @@ import java.util.List;
 import org.grits.toolbox.glytoucan.registry.client.om.GlycanFile;
 import org.grits.toolbox.glytoucan.registry.client.om.GlycanInformation;
 
+/**
+ * Utility class for load the GWS files in a provided input folder into
+ * GlycanFile objects
+ *
+ * @author Rene Ranzinger
+ *
+ */
 public class FolderProcessor
 {
 
+    /**
+     * Load the files from the provided folder into GlycanFile objects
+     *
+     * @param a_inputFolder
+     *            Input folder with the GWS files
+     * @return List of GlycanFile objects
+     * @throws IOException
+     *             Thrown if the loading of the files failed
+     */
     public List<GlycanFile> loadFiles(String a_inputFolder) throws IOException
     {
         List<GlycanFile> t_fileList = new ArrayList<>();
@@ -26,7 +42,7 @@ public class FolderProcessor
             if (t_fileName.endsWith("gws")
                     && this.isFile(a_inputFolder + File.separator + t_fileName))
             {
-                // create and file glycan file object
+                // create and fill GlycanFile object
                 GlycanFile t_glycanFile = new GlycanFile();
                 t_glycanFile.setFileName(t_fileName);
                 t_fileList.add(t_glycanFile);
@@ -46,12 +62,28 @@ public class FolderProcessor
         return t_fileList;
     }
 
+    /**
+     * Check if a provided path is actually a file.
+     *
+     * @param a_filePath
+     *            Path to check for being a file
+     * @return TRUE if the path is a file, otherwise FALSE
+     */
     private boolean isFile(String a_filePath)
     {
         File t_file = new File(a_filePath);
         return t_file.isFile();
     }
 
+    /**
+     * Read the content of a text file and return it
+     *
+     * @param a_filePath
+     *            Path of the file to be read
+     * @return String that contains the file content
+     * @throws IOException
+     *             Thrown if the loading of the file content failed
+     */
     private String loadFileContent(String a_filePath) throws IOException
     {
         Path t_filePath = Path.of(a_filePath);
