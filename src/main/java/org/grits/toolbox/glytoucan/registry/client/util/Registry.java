@@ -202,7 +202,103 @@ public class Registry
     public void registerInGlyTouCan(List<GlycanFile> a_glycanFiles, String a_glyTouCanUserID,
             String a_glyTouCanApiKey)
     {
-        System.out.println("Registration not implemented.");
+        // create client
+        GlyTouCanApiClient t_client = new GlyTouCanApiClient(a_glyTouCanUserID, a_glyTouCanApiKey);
+        // for each glycan in the glycan file objects
+        for (GlycanFile t_glycanFile : a_glycanFiles)
+        {
+            List<GlycanInformation> t_glycanList = t_glycanFile.getGlycans();
+            for (GlycanInformation t_glycan : t_glycanList)
+            {
+                // make sure it did not fail
+                if (!t_glycan.isFailed())
+                {
+                    this.registerGlycan(t_glycan, t_client);
+                    // TODO registration handling
+                }
+            }
+        }
+
+    }
+
+    private void registerGlycan(GlycanInformation a_glycan, GlyTouCanApiClient a_client)
+    {
+        try
+        {
+            HttpResponseSummary t_response = a_client.registerGlycan(a_glycan.getWurcs());
+            if (t_response.getHttpCode() >= 400)
+            {
+                // there was an error
+                a_glycan.setError("GlyTouCan registration request failed with HTTP code "
+                        + t_response.getHttpCode().toString() + ":" + t_response.getReasonPhrase());
+                a_glycan.setFailed(true);
+                a_glycan.addErrorInfo(t_response.getBody());
+            }
+            else
+            {
+                try
+                {
+                    GetAccessionResponse t_responseAccession = this.m_responseUtil
+                            .processGetAccessionNumber(t_response.getBody());
+                    if (t_responseAccession.isJsonError())
+                    {
+                        // we made some JSON GlyTouCan does not
+                        // understand
+                        a_glycan.setFailed(true);
+                        a_glycan.setError("Invalid JSON error from GlyTouCan.");
+                        a_glycan.addErrorInfo(t_responseAccession.getMessage());
+                    }
+                    else if (t_responseAccession.isError())
+                    {
+                        // some error happened
+                        a_glycan.setFailed(true);
+                        a_glycan.setError("GlyTouCan reported error.");
+                        a_glycan.addErrorInfo(t_responseAccession.getMessage());
+                    }
+                    else if (t_responseAccession.isAccessionFound())
+                    {
+                        // we found the ID
+                        a_glycan.setGlyTouCanId(t_responseAccession.getGlycanId());
+                        a_glycan.setWurcsAfterRegistration(t_responseAccession.getWurcs());
+                        // convert back to GlycoCT
+                        try
+                        {
+                            String t_glycoCT = this.m_converter
+                                    .wurcs2GlycoCt(t_responseAccession.getWurcs());
+                            a_glycan.setGlycoCtAfterRegistration(t_glycoCT);
+                            // convert to GWS
+                            Glycan t_glycanConverted = Glycan.fromGlycoCTCondensed(t_glycoCT);
+                            a_glycan.setGwsAfterRegistration(t_glycanConverted.toString());
+                            GlycanFormatConverter.adjustMassOption(t_glycanConverted);
+                            a_glycan.setGwsOrderedAfterRegistration(
+                                    t_glycanConverted.toStringOrdered());
+                        }
+                        catch (Exception e)
+                        {
+                            String t_stackTrace = Registry.stackTrace2String(e);
+                            a_glycan.addWarnings("Unable to translate back to GlycoCT and GWS: "
+                                    + e.getMessage());
+                            a_glycan.addWarnings(t_stackTrace);
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    String t_stackTrace = Registry.stackTrace2String(e);
+                    a_glycan.setFailed(true);
+                    a_glycan.setError(
+                            "Error in processing of GlyTouCan response: " + e.getMessage());
+                    a_glycan.addErrorInfo(t_stackTrace);
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            String t_stackTrace = Registry.stackTrace2String(e);
+            a_glycan.setFailed(true);
+            a_glycan.setError("Error in registering WURCS: " + e.getMessage());
+            a_glycan.addErrorInfo(t_stackTrace);
+        }
     }
 
     public static String stackTrace2String(Exception a_exception)
